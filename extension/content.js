@@ -148,6 +148,20 @@ function showAllTweets() {
 }
 
 /**
+ * Resets the state of all tweets on the page, restoring hidden ones and
+ * removing the 'processed' flag so they can be re-filtered.
+ */
+function resetAllTweets() {
+    // First, restore any tweets that were hidden by replacing their content.
+    showAllTweets();
+
+    // Then, remove the processed flag from all tweet text elements.
+    document.querySelectorAll('[data-testid="tweetText"][data-x-filter-processed]').forEach(el => {
+        el.removeAttribute('data-x-filter-processed');
+    });
+}
+
+/**
  * Resets the state of all tweets, making them visible and ready for re-processing.
  */
 function resetAndRefilter() {
@@ -201,25 +215,38 @@ function initializeObserver() {
 
 // Listen for configuration changes from the popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === "updateConfig") {
+    if (request.action === 'updateConfig') {
+        // Store previous state before updating
         const wasEnabled = filterConfig.enabled;
-        filterConfig = request.config;
-        console.log('X-Filter: Updated config received:', filterConfig);
+        const oldPrompt = filterConfig.prompt;
 
+        // Update to the new configuration
+        filterConfig = request.config;
+        console.log('X-Filter: Config updated', filterConfig);
+
+        // Case 1: The filter is now ON
         if (filterConfig.enabled) {
+            // Subcase 1a: It was just turned ON from an OFF state.
             if (!wasEnabled) {
-                // If it was just turned on, start observing and filter
-                initializeObserver();
-            } else {
-                // If it was already on but the prompt changed, reset and re-filter everything
-                resetAndRefilter();
+                console.log('X-Filter: Filter enabled. Starting observer.');
+                initializeObserver(); // This will also trigger an initial filter run
             }
-        } else if (wasEnabled) {
-            // If it was just turned off, stop observing and show all tweets
-            if (observer) observer.disconnect();
-            showAllTweets();
-            console.log('X-Filter: Mutation observer stopped.');
+            // Subcase 1b: The prompt changed while the filter was already ON.
+            else if (filterConfig.prompt !== oldPrompt) {
+                console.log('X-Filter: Prompt changed. Re-filtering all tweets.');
+                resetAllTweets(); // Restore hidden tweets and remove processed flags
+                filterTweets();   // Trigger a new filter run immediately
+            }
+        } 
+        // Case 2: The filter is now OFF (but was previously ON)
+        else if (wasEnabled) {
+            console.log('X-Filter: Filter disabled. Stopping observer and showing all tweets.');
+            if (observer) {
+                observer.disconnect();
+            }
+            showAllTweets(); // Restore any tweets that were hidden
         }
+
         sendResponse({ status: "config updated" });
         return true; // Indicates an async response
     }
@@ -236,8 +263,5 @@ chrome.storage.sync.get(['filterEnabled', 'customPrompt'], (result) => {
         initializeObserver();
     }
 });
-
-// Start observing the body for changes, as the timeline can be replaced.
-observer.observe(document.body, { childList: true, subtree: true });
 
 console.log("X-Filter content script loaded.");
