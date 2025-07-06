@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>X-Filter Control</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="header">
+        <h1>X-Filter</h1>
+        <label class="switch">
+            <input type="checkbox" id="filterToggle">
+            <span class="slider round"></span>
+        </label>
+    </div>
+
+    <div class="form-group">
+        <label for="promptText">Your Filtering Rule:</label>
+        <textarea id="promptText" rows="4" placeholder="e.g., Show me tweets about AI and machine learning, but hide politics."></textarea>
+    </div>
+
+    <button id="saveButton">Save & Apply</button>
+    <div id="statusMessage"></div>
+
+    <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "X Startup Filter",
+  "version": "1.0",
+  "description": "Filters your Twitter/X timeline to show tweets about startups and tech.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "*://twitter.com/*",
+    "*://x.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["*://twitter.com/*", "*://x.com/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
