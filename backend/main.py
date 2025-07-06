@@ -19,15 +19,25 @@ client = AzureOpenAI(
 
 AZURE_OPENAI_DEPLOYMENT_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI()
 
-# Add CORS middleware
+# --- CORS Middleware ---
+# This is crucial for allowing the browser extension to communicate with the backend.
+origins = [
+    "https://x.com",
+    "https://twitter.com",
+    # You can add other origins here if needed, e.g., for local development
+    # "http://localhost",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins for development
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["POST"], # Only allow POST requests
+    allow_headers=["Content-Type"], # Only allow Content-Type header
 )
 
 class TweetsRequest(BaseModel):
