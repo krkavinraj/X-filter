@@ -22,7 +22,23 @@ except Exception as e:
     print(f"Could not load Gemini model: {e}")
     model = None # Set model to None if it fails to load
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI()
+
+# Configure CORS
+origins = [
+    "https://x.com",
+    "https://twitter.com",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["POST"],
+    allow_headers=["Content-Type"],
+)
 
 # Add CORS middleware
 app.add_middleware(
