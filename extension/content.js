@@ -1,7 +1,7 @@
 // X-Filter Content Script
 
 // --- Configuration ---
-const BACKEND_URL = 'https://4df5-34-47-181-182.ngrok-free.app/api/filter-tweets';
+const BACKEND_URL = 'https://0d8f-34-47-181-182.ngrok-free.app/api/filter-tweets';
 const DEBOUNCE_DELAY = 1000; // ms to wait after last DOM change before filtering
 const BATCH_SIZE = 50; // Number of tweets to process per API call
 
@@ -41,6 +41,14 @@ async function filterTweets() {
         const batchTexts = batch.map(t => t.text);
 
         try {
+            console.log("X-Filter: Sending message to background script", {
+                action: "filterTweets",
+                data: {
+                    backendUrl: BACKEND_URL,
+                    tweets: batchTexts,
+                    prompt: filterConfig.prompt
+                }
+            });
             const response = await chrome.runtime.sendMessage({
                 action: "filterTweets",
                 data: {
