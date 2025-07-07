@@ -1,7 +1,7 @@
 // X-Filter Content Script
 
 // --- Configuration ---
-const BACKEND_URL = 'https://x-filter-backend.onrender.com/api/filter-tweets';
+const BACKEND_URL = 'http://34.47.181.182:8080/api/filter-tweets';
 const DEBOUNCE_DELAY = 1000; // ms to wait after last DOM change before filtering
 const BATCH_SIZE = 50; // Number of tweets to process per API call
 
