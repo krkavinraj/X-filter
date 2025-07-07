@@ -43,7 +43,10 @@ async function filterTweets() {
         try {
             const response = await fetch(BACKEND_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'ngrok-skip-browser-warning': 'true' // Add this header to bypass ngrok's browser warning page
+                },
                 body: JSON.stringify({
                     tweets: batchTexts,
                     prompt: filterConfig.prompt
