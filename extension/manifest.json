@@ -8,7 +8,8 @@
   ],
   "host_permissions": [
     "*://twitter.com/*",
-    "*://x.com/*"
+    "*://x.com/*",
+    "*://*.ngrok-free.app/*" 
   ],
   "content_scripts": [
     {
@@ -18,5 +19,8 @@
   ],
   "action": {
     "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
   }
 }

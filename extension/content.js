@@ -1,7 +1,7 @@
 // X-Filter Content Script
 
 // --- Configuration ---
-const BACKEND_URL = 'https://aa00-34-47-181-182.ngrok-free.app/api/filter-tweets';
+const BACKEND_URL = 'https://4df5-34-47-181-182.ngrok-free.app/api/filter-tweets';
 const DEBOUNCE_DELAY = 1000; // ms to wait after last DOM change before filtering
 const BATCH_SIZE = 50; // Number of tweets to process per API call
 
@@ -41,40 +41,32 @@ async function filterTweets() {
         const batchTexts = batch.map(t => t.text);
 
         try {
-            const response = await fetch(BACKEND_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'ngrok-skip-browser-warning': 'true' // Add this header to bypass ngrok's browser warning page
-                },
-                body: JSON.stringify({
+            const response = await chrome.runtime.sendMessage({
+                action: "filterTweets",
+                data: {
+                    backendUrl: BACKEND_URL,
                     tweets: batchTexts,
                     prompt: filterConfig.prompt
-                })
+                }
             });
 
-            if (!response.ok) {
-                const errorBody = await response.json().catch(() => response.text()); // Try to parse JSON, fall back to text
-                console.error('X-Filter: Backend request failed.', {
-                    status: response.status,
-                    statusText: response.statusText,
-                    body: errorBody
-                });
+            if (!response || !response.success) {
+                console.error('X-Filter: Backend request failed via background script.', response?.error || 'No response');
                 // Un-mark so they can be retried later
                 batch.forEach(t => t.element.removeAttribute('data-x-filter-processed'));
                 continue;
             }
 
-            const { results } = await response.json();
+            const { results } = response.data;
 
             if (results && results.length === batch.length) {
                 updateDOM(batch, results);
             } else {
-                console.error('X-Filter: Mismatch in results length or invalid response.');
+                console.error('X-Filter: Mismatch in results length or invalid response from background script.');
                 batch.forEach(t => t.element.removeAttribute('data-x-filter-processed'));
             }
         } catch (error) {
-            console.error('X-Filter: Error sending tweets to backend.', error);
+            console.error('X-Filter: Error sending message to background script.', error);
             batch.forEach(t => t.element.removeAttribute('data-x-filter-processed'));
         }
     }
