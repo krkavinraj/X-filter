@@ -22,30 +22,15 @@ except Exception as e:
     print(f"Could not load Gemini model: {e}")
     model = None # Set model to None if it fails to load
 
-from fastapi.middleware.cors import CORSMiddleware
-
 app = FastAPI()
 
-# Configure CORS
-origins = [
-    "https://x.com",
-    "https://twitter.com",
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["POST"],
-    allow_headers=["Content-Type"],
-)
-
 # Add CORS middleware
+# This allows your extension (running on x.com) to make requests to your backend.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins for development
+    allow_origins=["*"],  # Allows all origins for robust testing
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
+    allow_methods=["*"],  # Allows all methods (e.g., POST)
     allow_headers=["*"],  # Allows all headers
 )
 
