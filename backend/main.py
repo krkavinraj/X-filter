@@ -8,9 +8,10 @@ from typing import List, Optional
 import uvicorn
 
 # --- Google Cloud Vertex AI Initialization ---
-# Initialize Vertex AI. When running on Cloud Run, it automatically detects the project.
+# Explicitly initialize Vertex AI with the project and location.
+# Preview models often require a specific location, like 'global', to be found.
 try:
-    vertexai.init()
+    vertexai.init(project="xfilter-465206", location="global")
 except Exception as e:
     print(f"Could not initialize Vertex AI: {e}")
 
