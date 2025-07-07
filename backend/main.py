@@ -1,43 +1,36 @@
 import os
-from openai import AzureOpenAI, APIError
+import vertexai
+from vertexai.generative_models import GenerativeModel
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
-from dotenv import load_dotenv
 import uvicorn
 
-# Load environment variables from .env file
-load_dotenv()
+# --- Google Cloud Vertex AI Initialization ---
+# Initialize Vertex AI. When running on Cloud Run, it automatically detects the project.
+try:
+    vertexai.init()
+except Exception as e:
+    print(f"Could not initialize Vertex AI: {e}")
 
-# Configure Azure OpenAI client (v1.x)
-client = AzureOpenAI(
-    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-    api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
-    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
-)
-
-AZURE_OPENAI_DEPLOYMENT_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
-
-from fastapi.middleware.cors import CORSMiddleware
+# Load the Gemini model
+# Using the specific preview model as requested.
+try:
+    model = GenerativeModel("gemini-2.5-flash-lite-preview-06-17")
+except Exception as e:
+    print(f"Could not load Gemini model: {e}")
+    model = None # Set model to None if it fails to load
 
 app = FastAPI()
 
-# --- CORS Middleware ---
-# This is crucial for allowing the browser extension to communicate with the backend.
-origins = [
-    "https://x.com",
-    "https://twitter.com",
-    # You can add other origins here if needed, e.g., for local development
-    # "http://localhost",
-]
-
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],  # Allows all origins for development
     allow_credentials=True,
-    allow_methods=["POST"], # Only allow POST requests
-    allow_headers=["Content-Type"], # Only allow Content-Type header
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
 )
 
 class TweetsRequest(BaseModel):
@@ -46,78 +39,78 @@ class TweetsRequest(BaseModel):
 
 @app.get("/")
 def read_root():
-    return {"message": "X-Filter Backend is running."}
+    return {"message": "X-Filter Backend is running on Google Cloud with Gemini."}
 
 @app.post("/api/filter-tweets")
 async def filter_tweets(request: TweetsRequest):
     if not request.tweets:
         raise HTTPException(status_code=400, detail="No tweets provided.")
+    if not model:
+        raise HTTPException(status_code=503, detail="Gemini model is not available.")
 
     try:
-        user_content = build_prompt(request.tweets, request.prompt)
+        # The system prompt is now part of the main prompt for Gemini
+        full_prompt = build_prompt_for_gemini(request.tweets, request.prompt)
 
-        response = client.chat.completions.create(
-            model=AZURE_OPENAI_DEPLOYMENT_NAME,
-            messages=[
-                {"role": "system", "content": "You are a tweet classifier. The user will provide a rule and a list of tweets. For each tweet, return \"YES\" or \"NO\" indicating if it matches the user's rule. Respond with a numbered list, with each result on a new line. Do not add any other text or explanation."},
-                {"role": "user", "content": user_content}
-            ],
-            temperature=0,
-            max_tokens=len(request.tweets) * 5, # Estimate tokens needed
-            top_p=1,
-            frequency_penalty=0,
-            presence_penalty=0
-        )
+        # Generate content
+        response = model.generate_content(full_prompt)
 
-        results_text = response.choices[0].message.content
+        results_text = response.text
         boolean_results = parse_results(results_text, len(request.tweets))
         
         return {"results": boolean_results}
 
-    except APIError as e:
-        print(f"OpenAI API error: {e}")
-        # Gracefully handle content filtering errors
-        if e.code == 'content_filter':
-            print("Content filter triggered. Defaulting to keeping all tweets in this batch.")
-            # Return a list of True to prevent any tweets in this batch from being hidden
-            return {"results": [True] * len(request.tweets)}
-        
-        raise HTTPException(status_code=500, detail=f"An error occurred with the OpenAI API: {e}")
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-        raise HTTPException(status_code=500, detail="An unexpected error occurred.")
+        print(f"An unexpected error occurred with Vertex AI: {e}")
+        raise HTTPException(status_code=500, detail=f"An error occurred with the Gemini API: {e}")
 
-def build_prompt(tweets: List[str], rule: str) -> str:
-    """Builds the prompt for the GPT model with the user's rule and a numbered list of tweets."""
-    prompt_lines = [
+def build_prompt_for_gemini(tweets: List[str], rule: str) -> str:
+    """Builds the prompt for the Gemini model."""
+    # System instruction for the model
+    system_instruction = "You are a tweet classifier. The user will provide a rule and a list of tweets. For each tweet, return \"YES\" or \"NO\" indicating if it matches the user's rule. Respond with a numbered list, with each result on a new line. Do not add any other text or explanation."
+    
+    # User's specific request
+    user_prompt_lines = [
         "My rule is:",
         f'"{rule}"',
         "\nTweets to classify:",
     ]
     for i, tweet in enumerate(tweets, 1):
-        prompt_lines.append(f'{i}. "{tweet}"')
-    return "\n".join(prompt_lines)
+        # Basic sanitization to avoid breaking the prompt format
+        sanitized_tweet = tweet.replace('"', "'").replace('\n', ' ')
+        user_prompt_lines.append(f'{i}. "{sanitized_tweet}"')
+    
+    user_content = "\n".join(user_prompt_lines)
+
+    # Combine system and user prompts
+    return f"{system_instruction}\n\n---\n\n{user_content}"
 
 def parse_results(results_text: str, expected_count: int) -> List[bool]:
     """Parses the model's YES/NO response into a list of booleans."""
     if not results_text:
         print(f"Warning: Empty response from model. Expected {expected_count} results.")
-        return [False] * expected_count
+        # Default to not filtering to be safe
+        return [True] * expected_count
         
     lines = results_text.strip().split('\n')
     results = []
     for line in lines:
+        # Handle lines like "1. YES" or just "YES"
         cleaned_line = line.split('.')[-1].strip().upper()
-        if cleaned_line == "YES":
+        if "YES" in cleaned_line:
             results.append(True)
-        elif cleaned_line == "NO":
+        elif "NO" in cleaned_line:
             results.append(False)
     
+    # If parsing fails or the count is mismatched, default to keeping the tweets.
+    # This is safer than accidentally hiding everything.
     if len(results) != expected_count:
-        print(f"Warning: Mismatch in result count. Expected {expected_count}, got {len(results)}. Response was: {results_text}")
-        return [False] * expected_count
+        print(f"Warning: Mismatch in result count. Expected {expected_count}, got {len(results)}. Response: '{results_text}'")
+        return [True] * expected_count
 
     return results
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Cloud Run injects the PORT environment variable.
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
