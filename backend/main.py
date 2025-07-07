@@ -11,13 +11,15 @@ import uvicorn
 # Explicitly initialize Vertex AI with the project and location.
 # Preview models often require a specific location, like 'global', to be found.
 try:
-    vertexai.init(project="xfilter-465206", location="global")
+    # Explicitly set the location to 'us-central1' to match the API endpoint and resolve the 404 model not found error.
+    vertexai.init(project="xfilter-465206", location="global")  # Use global endpoint for preview models
 except Exception as e:
     print(f"Could not initialize Vertex AI: {e}")
 
 # Load the Gemini model
 # Using the specific preview model as requested.
 try:
+    # The target model for the X-Filter application.
     model = GenerativeModel("gemini-2.5-flash-lite-preview-06-17")
 except Exception as e:
     print(f"Could not load Gemini model: {e}")

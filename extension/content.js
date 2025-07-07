@@ -1,7 +1,7 @@
 // X-Filter Content Script
 
 // --- Configuration ---
-const BACKEND_URL = 'https://0d8f-34-47-181-182.ngrok-free.app/api/filter-tweets';
+
 const DEBOUNCE_DELAY = 1000; // ms to wait after last DOM change before filtering
 const BATCH_SIZE = 50; // Number of tweets to process per API call
 
@@ -21,60 +21,56 @@ let observer; // Declare observer here to be accessible globally within the scri
 async function filterTweets() {
     if (!filterConfig.enabled) return;
 
-    // Find all tweets that haven't been processed yet
     const tweetElements = Array.from(document.querySelectorAll('article [data-testid="tweetText"]:not([data-x-filter-processed="true"])'));
-
     if (tweetElements.length === 0) return;
 
     console.log(`X-Filter: Found ${tweetElements.length} new tweets to process.`);
-    // Mark tweets as processed immediately to avoid re-processing in the next run
     tweetElements.forEach(el => el.setAttribute('data-x-filter-processed', 'true'));
 
-    const tweetsData = tweetElements.map(el => ({
-        element: el,
-        text: el.innerText
-    }));
+    const tweetsData = tweetElements.map(el => ({ element: el, text: el.innerText }));
 
-    // Process tweets in batches
     for (let i = 0; i < tweetsData.length; i += BATCH_SIZE) {
         const batch = tweetsData.slice(i, i + BATCH_SIZE);
-        const batchTexts = batch.map(t => t.text);
 
         try {
-            console.log("X-Filter: Sending message to background script", {
-                action: "filterTweets",
+            const message = {
+                type: 'filterTweets',
                 data: {
-                    backendUrl: BACKEND_URL,
-                    tweets: batchTexts,
+                    tweets: batch.map(t => t.text),
                     prompt: filterConfig.prompt
                 }
-            });
-            const response = await chrome.runtime.sendMessage({
-                action: "filterTweets",
-                data: {
-                    backendUrl: BACKEND_URL,
-                    tweets: batchTexts,
-                    prompt: filterConfig.prompt
-                }
-            });
+            };
 
-            if (!response || !response.success) {
-                console.error('X-Filter: Backend request failed via background script.', response?.error || 'No response');
-                // Un-mark so they can be retried later
+            const response = await chrome.runtime.sendMessage(message);
+
+            // This is the most important error check. It handles when the background script is unavailable.
+            if (chrome.runtime.lastError) {
+                if (chrome.runtime.lastError.message.includes('Extension context invalidated')) {
+                    console.error('X-Filter: Background script connection lost. It may be restarting. Will retry automatically.');
+                } else {
+                    console.error('X-Filter: An unknown error occurred with the background script:', chrome.runtime.lastError.message);
+                }
+                // Un-mark the batch for retry regardless of the error.
                 batch.forEach(t => t.element.removeAttribute('data-x-filter-processed'));
-                continue;
+                continue; // Move to the next batch
             }
 
-            const { results } = response.data;
-
-            if (results && results.length === batch.length) {
-                updateDOM(batch, results);
+            if (response && response.success) {
+                const { results } = response.data;
+                if (results && results.length === batch.length) {
+                    updateDOM(batch, results);
+                } else {
+                    console.error('X-Filter: Mismatch in results length from backend.');
+                    batch.forEach(t => t.element.removeAttribute('data-x-filter-processed'));
+                }
             } else {
-                console.error('X-Filter: Mismatch in results length or invalid response from background script.');
+                console.error('X-Filter: Backend request failed.', response?.error || 'No response from background script.');
                 batch.forEach(t => t.element.removeAttribute('data-x-filter-processed'));
             }
+
         } catch (error) {
-            console.error('X-Filter: Error sending message to background script.', error);
+            // This catch block will now primarily handle unexpected errors.
+            console.error('X-Filter: A critical error occurred in the filterTweets loop.', error);
             batch.forEach(t => t.element.removeAttribute('data-x-filter-processed'));
         }
     }
