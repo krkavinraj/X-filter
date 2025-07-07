@@ -1,7 +1,7 @@
 // X-Filter Content Script
 
 // --- Configuration ---
-const BACKEND_URL = 'https://86e1-34-47-181-182.ngrok-free.app/api/filter-tweets';
+const BACKEND_URL = 'https://aa00-34-47-181-182.ngrok-free.app/api/filter-tweets';
 const DEBOUNCE_DELAY = 1000; // ms to wait after last DOM change before filtering
 const BATCH_SIZE = 50; // Number of tweets to process per API call
 
